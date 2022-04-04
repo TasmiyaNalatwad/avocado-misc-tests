@@ -62,6 +62,8 @@ class Ethtool(Test):
         self.netmask = self.params.get("netmask", default="")
         self.hbond = self.params.get("hbond", default=False)
         self.peer = self.params.get("peer_ip")
+        self.tx = self.params.get("tx_channel", default='4')
+        self.rx = self.params.get("rx_channel", default='4')
         if not self.peer:
             self.cancel("No peer provided")
         local = LocalHost()
@@ -131,14 +133,33 @@ class Ethtool(Test):
         for state, status in zip(["down", "up"], ["no", "yes"]):
             if not self.interface_state_change(self.iface, state, status):
                 self.fail("interface %s failed" % state)
-            cmd = "ethtool %s %s %s" % (self.args, self.iface, self.elapse)
-            ret = process.run(cmd, shell=True, verbose=True,
-                              ignore_status=True)
-            if ret.exit_status != 0:
-                if "Operation not supported" in ret.stderr_text:
-                    self.log.warn("%s failed" % self.args)
-                else:
-                    self.fail("failed")
+            if self.args == "-L":
+                cmd1 = "ethtool %s %s tx %s rx %s" % (self.args, self.iface,
+                                                      self.tx, self.rx)
+                ret1 = process.run(cmd1, shell=True, verbose=True,
+                                   ignore_status=True)
+                if ret1.exit_status != 0:
+                    if "channel count exceeds maximum" in ret1.stderr_text:
+                        self.fail("Invalid argument")
+                    elif "Can't set device channel params" in ret1.stderr_text:
+                        self.cancel("%s Operation Not supported" % self.args)
+                    else:
+                        self.fail("%s failed" % self.args)
+                cmd2 = "ethtool %s %s %s" % ("-l", self.iface, self.elapse)
+                ret2 = process.run(cmd2, shell=True, verbose=True,
+                                   ignore_status=True).stdout_text
+                if (ret2.find("self.tx") != -1) and (ret2.find
+                                                     ("self.rx") != -1):
+                    self.fail("channel set failed")
+            else:
+                cmd = "ethtool %s %s %s" % (self.args, self.iface, self.elapse)
+                ret = process.run(cmd, shell=True, verbose=True,
+                                  ignore_status=True)
+                if ret.exit_status != 0:
+                    if "Operation not supported" in ret.stderr_text:
+                        self.log.warn("%s failed" % self.args)
+                    else:
+                        self.fail("%s failed" % self.args)
         if self.networkinterface.ping_check(self.peer, count=10000,
                                             options='-f') is not None:
             self.fail("flood ping test failed")
