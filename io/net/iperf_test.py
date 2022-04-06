@@ -80,6 +80,17 @@ class Iperf(Test):
             if not output.exit_status == 0:
                 self.cancel("unable to install the package %s on peer machine "
                             % pkg)
+        cmd1 = "systemctl stop firewalld.service"
+        cmd2 = "systemctl status firewalld.service"
+        self.session.cmd(cmd1)
+        result_peer = self.session.cmd(cmd2)
+        if "active (running)" in result_peer.stdout_text:
+            self.cancel("Failed to stop Firewall service on peer")
+        process.run(cmd1, shell=True, verbose=True, ignore_status=True)
+        result_host = process.run(cmd2, shell=True, verbose=True,
+                                  ignore_status=True)
+        if "active (running)" in result_host.stdout_text:
+            self.cancel("Failed to stop Firewall service on host")
 
         detected_distro = distro.detect()
         pkg = "nmap"
@@ -194,6 +205,17 @@ class Iperf(Test):
         """
         Killing Iperf process in peer machine
         """
+        cmd1 = "systemctl start firewalld.service"
+        cmd2 = "systemctl status firewalld.service"
+        self.session.cmd(cmd1)
+        result_peer = self.session.cmd(cmd2)
+        if "inactive (dead)" in result_peer.stdout_text:
+            self.log.warn("Failed to start Firewall service on peer")
+        process.run(cmd1, shell=True, verbose=True, ignore_status=True)
+        result_host = process.run(cmd2, shell=True, verbose=True,
+                                  ignore_status=True)
+        if "inactive (dead)" in result_host.stdout_text:
+            self.log.warn("Failed to start Firewall service on host")
         cmd = "pkill iperf; rm -rf /tmp/%s" % self.version
         output = self.session.cmd(cmd)
         if not output.exit_status == 0:
